@@ -7,7 +7,10 @@ var express = require("express"),
     mongoose = require("mongoose"),
     encrypt = require("mongoose-encryption"),
     bcrypt = require("bcrypt"),
+    findOrCreate = require("mongoose-findorcreate");
     app = express();
+
+const GoogleStrategy = require('passport-google-oauth20').Strategy;
 
 const session = require("express-session"),
       passport = require("passport"),
@@ -18,8 +21,31 @@ var User = require("./models/user.js");
 mongoose.set("useCreateIndex", true);
 
 passport.use(User.createStrategy());
-passport.serializeUser(User.serializeUser());
-passport.deserializeUser(User.deserializeUser());
+// passport.serializeUser(User.serializeUser());
+// passport.deserializeUser(User.deserializeUser());
+
+passport.serializeUser((err, done) => {
+  done(null, user.id);
+})
+
+passport.deserializeUser((id, done) => {
+  User.findById(id, (err, user) => {
+    done(err, user);
+  })
+})
+
+passport.use(new GoogleStrategy({
+    clientID: process.env.CLIENT_ID,
+    clientSecret: process.env.CLIENT_SECRET,
+    callbackURL: "http://localhost:3004/google/auth/secrets",
+    userProfileURL: "https://www.googleapis.com/oauth2/v3/userinfo"
+  },
+  function(accessToken, refreshToken, profile, cb) {
+    User.findOrCreate({ googleId: profile.id }, function (err, user) {
+      return cb(err, user);
+    });
+  }
+));
 
 const saltRounds = 10;
 const portNum = 3004;
@@ -44,6 +70,16 @@ mongoose.connect("mongodb://localhost:27017/secrets");
 app.get("/", (req, res) => {
   res.render("home");
 })
+
+app.get("/auth/google", (req, res) => {
+  passport.authenticate("google", {scope: ["profile"]});
+})
+
+app.get("/auth/google/secrets",
+  passport.authenticate("google", {failureRedirect: "/login"}), (req, res) => {
+    res.redirect("/secrets");
+  });
+});
 
 app.get("/login", (req, res) => {
   res.render("login");
