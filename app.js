@@ -1,13 +1,17 @@
 //jshint esversion:6
+require("dotenv").config();
+
 var express = require("express"),
     bodyparser = require("body-parser"),
     ejs = require("ejs"),
     mongoose = require("mongoose"),
     encrypt = require("mongoose-encryption"),
+    bcrypt = require("bcrypt"),
     app = express();
 
 var User = require("./models/user.js");
 
+const saltRounds = 10;
 const portNum = 3004;
 
 
@@ -29,12 +33,15 @@ app.get("/register", (req, res) => {
 })
 
 app.post("/register", (req, res) => {
-  User.create({email: req.body.email, password: req.body.password}, (err, newUser) => {
-    if (err) {
-      console.log(err);
-    } else {
-      res.render("secrets");
-    }
+
+  bcrypt.hash(req.body.password, saltRounds, (err, hash) => {
+    User.create({email: req.body.email, password: hash}, (err, newUser) => {
+      if (err) {
+        console.log(err);
+      } else {
+        res.render("secrets");
+      }
+    });
   });
 })
 
@@ -43,7 +50,14 @@ app.post("/login", (req, res) => {
     if (err) {
       console.log(err);
     } else {
-      res.render("secrets");
+
+      bcrypt.compare(req.body.password, user.password, (err, result) => {
+        if (result == true) {
+          res.render("secrets");
+        } else {
+          res.redirect("/login");
+        }
+      })
     }
   })
 })
